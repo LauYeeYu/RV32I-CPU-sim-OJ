@@ -80,11 +80,20 @@ wire outRegWrite = ready && !readWriteReg;
 assign writeBackOut = lineDirty ? cacheData[dataPos] : cacheData[nextDataPos];
 
 always @* begin
-  if (accessType != 2'b00) begin
+  if (resetIn) begin
+    accessTypeReg  <= 2'b00;
+    dataAddrReg    <= 32'b0;
+    dataReg        <= 32'b0;
+    readWriteReg   <= 1'b1;
+  end else if (clearIn && readWriteReg == 1) begin
+    accessTypeReg  <= 2'b00;
+  end else if (accessType != 2'b00) begin
     dataAddrReg   <= dataAddrIn;
     accessTypeReg <= accessType;
     dataReg       <= dataIn;
     readWriteReg  <= readWriteIn;
+  end else if (outValidReg || outRegWriteSuc) begin
+    accessTypeReg <= 2'b00;
   end
 end
 
@@ -107,10 +116,6 @@ always @(posedge clkIn) begin
     cacheDirty     <= {CACHE_SIZE{1'b0}};
     outValidReg    <= 0;
     outRegWriteSuc <= 0;
-    accessTypeReg  <= 2'b00;
-    dataAddrReg    <= 32'b0;
-    dataReg        <= 32'b0;
-    readWriteReg   <= 1'b1;
     for (i = 0; i < CACHE_SIZE; i = i + 1) begin
       cacheTag[i]  <= 0;
       cacheData[i] <= 0;
@@ -120,12 +125,10 @@ always @(posedge clkIn) begin
       // abort memory read operation when there is a wrong branch prediction
       outValidReg    <= 0;
       outRegWriteSuc <= 0;
-      accessTypeReg  <= 2'b00;
     end else begin
       outValidReg    <= outValid;
       outRegWriteSuc <= outRegWrite;
       if (ready) begin
-        accessTypeReg  <= 2'b00;
         case (accessTypeReg)
           2'b01: begin // byte
             if (readWriteReg) begin
